@@ -1,69 +1,53 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>MOC HSE InfoBoard</title><meta name="theme-color" content="#071523">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MOC HSE InfoBoard</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071523;color:#fff;font:16px Arial,Helvetica,sans-serif}
-#stage{position:fixed;inset:0;background:#071523;overflow:hidden;cursor:none}
-.page{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .45s ease;background:#071523}.page.active{opacity:1}.page canvas{display:block;max-width:100%;max-height:100%;object-fit:contain}
-#splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#e2eff7;text-align:center;padding:28px}#splash h1{font-size:clamp(28px,5vw,58px);margin:0}#splash p{max-width:750px;line-height:1.5;color:#adbfcc}
-#controls{position:fixed;top:15px;right:16px;z-index:5;opacity:0;transition:opacity .2s;display:flex;gap:8px}body.show-ui #controls,body.settings-open #controls{opacity:1}body.show-ui #stage{cursor:default}
-button{border:0;border-radius:8px;background:#167e87;color:white;padding:12px 16px;font:inherit;cursor:pointer}button.secondary{background:#284252}
-#footer{position:fixed;bottom:12px;left:18px;right:18px;z-index:3;display:flex;justify-content:space-between;color:#d3e4eb;font-size:14px;text-shadow:0 1px 4px #000;opacity:0;pointer-events:none}body.show-ui #footer{opacity:1}
-#panel{display:none;position:fixed;z-index:10;inset:0;overflow:auto;background:rgba(4,15,26,.98);padding:24px}body.settings-open #panel{display:block}.wrap{max-width:770px;margin:auto}h2{margin:4px 0 8px}.muted{color:#b8cdd9;line-height:1.55}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{margin:15px 0;display:flex;flex-direction:column;gap:8px}label{font-size:14px;color:#c6dce6}input{font:inherit;color:white;background:#152c3a;border:1px solid #537181;border-radius:7px;padding:11px;min-width:0}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0}.status{background:#10293a;padding:14px;border-radius:8px;white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}.note{padding:10px 14px;border-left:3px solid #47c2c5;background:#142b38;color:#c6d9e5;line-height:1.5}.tiny{font-size:13px}#upload{max-width:100%}@media(max-width:600px){.grid{grid-template-columns:1fr}#panel{padding:16px}}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#071523;color:#fff;font-family:Arial,sans-serif}
+#screen{position:absolute;left:0;top:0;width:100%;height:100%;background:#071523}
+#slide{display:none;position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain}
+#message{position:absolute;left:3%;bottom:4%;font-size:19px;color:#d3e4eb;max-width:90%;line-height:1.5}
+#small{position:absolute;left:12px;bottom:8px;font-size:12px;color:#9eb5c3}
 </style>
 </head>
-<body>
-<div id="stage"><div class="page" id="page0"></div><div class="page" id="page1"></div><div id="splash"><h1>MOC HSE InfoBoard</h1><p id="splashmsg">Starting player…</p><p id="detail" style="font-size:17px;color:#9fc1d3"></p></div></div>
-<div id="controls"><button id="settingsBtn">⚙ Settings</button></div>
-<div id="footer"><span id="stateLabel">HSE InfoBoard</span><span id="pageCount">—</span></div>
-<div id="panel"><div class="wrap"><h2>MOC HSE InfoBoard <small style="font-size:14px;color:#91aebd">v3.0 LG</small></h2>
-<div class="grid"><div class="field"><label for="duration">Seconds per slide</label><input type="number" id="duration" min="3" max="3600" value="15"></div><div class="field"><label for="hours">Check for changes (hours)</label><input type="number" id="hours" min="0.0167" max="720" step="any" value="4"></div></div>
-<div class="actions"><button id="saveBtn">Save settings</button><button id="refreshBtn" class="secondary">Check now</button><button id="closeBtn" class="secondary">Return to slides</button><button id="fullscreenBtn" class="secondary">Fullscreen</button></div>
-<h3>Player status</h3><div id="status" class="status">Starting…</div>
-</div></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<body><div id="screen"><img id="slide" alt="MOC HSE slide"><div id="message">Loading MOC HSE InfoBoard…</div><div id="small">MOC HSE InfoBoard</div></div>
 <script>
-(function(){'use strict';
-// IMPORTANT: A signed flow URL is public when this file is published on GitHub Pages.
-var ENDPOINT='https://default810e707a0fee4c86951994811f49ad.0e.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/22/workflows/80233ea49c834f34bf8032ac9031bcc7/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=eJpjjR4x1gfozOuzy-qDlkDCX5oU9kATm9hN4-qH50Q';
-var STORE='moc_tv_config_v3', CACHE='moc_infoboard_pdf_cache';
-var $=function(id){return document.getElementById(id)};
-var cfg={duration:15,hours:4};
-try{var stored=JSON.parse(localStorage.getItem(STORE)||'{}');if(stored.duration>=3)cfg.duration=Number(stored.duration);if(stored.hours>=1/60)cfg.hours=Number(stored.hours)}catch(e){}
-var pdf=null,bytesNow=null,active=0,index=0,rot=null,check=null,retry=null,ui=null,busy=false,painting=false,offline=false;
-var lastCheck='Never',lastSuccess='Never',lastError='',phase='Initializing',attempt=0,renderScale=1;
-function message(t){phase=t;$('splashmsg').textContent=t;$('detail').textContent=lastError?'Last error: '+lastError:'';status()}
-function status(){var a=['Stage: '+phase,'PDF pages: '+(pdf?pdf.numPages:'—'),'Slide: '+(pdf?(index+1):'—'),'Check: '+lastCheck,'Last success: '+lastSuccess,'Offline cache: '+(offline?'YES':'no'),'Slide duration: '+cfg.duration+' s','Update interval: '+cfg.hours+' h','PDF.js loaded: '+(!!window.pdfjsLib),'Screen: '+innerWidth+'x'+innerHeight];if(lastError)a.push('Error: '+lastError);$('status').textContent=a.join('\n');$('pageCount').textContent=pdf?(index+1)+' / '+pdf.numPages:'—';$('stateLabel').textContent=offline?'Cached MOC HSE InfoBoard':'MOC HSE InfoBoard'}
-function reveal(){document.body.classList.add('show-ui');clearTimeout(ui);ui=setTimeout(function(){if(!document.body.classList.contains('settings-open'))document.body.classList.remove('show-ui')},8000)}
-function errorText(e){return String(e&&e.message||e||'Unknown error')}
-function cacheWrite(buf){return new Promise(function(resolve){try{if(!window.indexedDB)return resolve();var r=indexedDB.open(CACHE,1);r.onupgradeneeded=function(){if(!r.result.objectStoreNames.contains('files'))r.result.createObjectStore('files')};r.onerror=function(){resolve()};r.onsuccess=function(){var db=r.result,tx=db.transaction('files','readwrite');tx.objectStore('files').put(buf.slice(0),'latest');tx.oncomplete=tx.onerror=function(){db.close();resolve()}}}catch(e){resolve()}})}
-function cacheRead(){return new Promise(function(resolve){try{if(!window.indexedDB)return resolve(null);var r=indexedDB.open(CACHE,1);r.onupgradeneeded=function(){if(!r.result.objectStoreNames.contains('files'))r.result.createObjectStore('files')};r.onerror=function(){resolve(null)};r.onsuccess=function(){var db=r.result,tx=db.transaction('files','readonly'),q=tx.objectStore('files').get('latest');q.onsuccess=function(){resolve(q.result||null)};q.onerror=function(){resolve(null)};tx.oncomplete=function(){db.close()}}}catch(e){resolve(null)}})}
-function isPDF(buf){if(!buf||buf.byteLength<6)return false;var b=new Uint8Array(buf);return b[0]===37&&b[1]===80&&b[2]===68&&b[3]===70&&b[4]===45}
-function equal(a,b){if(!a||!b||a.byteLength!==b.byteLength)return false;var x=new Uint8Array(a),y=new Uint8Array(b);for(var i=0;i<x.length;i++)if(x[i]!==y[i])return false;return true}
-function loadLibrary(){return new Promise(function(resolve,reject){if(window.pdfjsLib)return resolve();message('Loading PDF renderer…');var el=document.createElement('script');el.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';el.onload=function(){window.pdfjsLib?resolve():reject(new Error('PDF renderer unavailable'))};el.onerror=function(){reject(new Error('Cannot load PDF.js from CDN'))};document.head.appendChild(el)})}
-function xhrPDF(){return new Promise(function(resolve,reject){var x=new XMLHttpRequest();x.open('POST',ENDPOINT,true);x.responseType='arraybuffer';x.timeout=65000;x.onload=function(){if(x.status<200||x.status>=300)return reject(new Error('Power Automate HTTP '+x.status));var b=x.response;if(!isPDF(b))return reject(new Error('Flow response is not raw PDF ('+(b?b.byteLength:0)+' bytes). Check Response body and Content-Type.'));resolve(b)};x.onerror=function(){reject(new Error('Network/CORS: browser cannot read Power Automate response'))};x.ontimeout=function(){reject(new Error('Flow request timed out after 65 seconds'))};try{x.send()}catch(e){reject(e)}})}
-function getDoc(buf){return loadLibrary().then(function(){message('Decoding PDF…');return pdfjsLib.getDocument({data:new Uint8Array(buf.slice(0)),disableWorker:true,disableFontFace:true,useSystemFonts:true,isEvalSupported:false}).promise})}
-function draw(doc,n,slot){message('Rendering slide '+(n+1)+' / '+doc.numPages+'…');return doc.getPage(n+1).then(function(page){var base=page.getViewport({scale:1}),w=innerWidth||1920,h=innerHeight||1080;
-// Limit memory: at most ~1.3 megapixels per canvas, suitable for older LG Signage.
-var fit=Math.min(w/base.width,h/base.height),pixelCap=Math.sqrt(1300000/(base.width*base.height));var scale=Math.min(fit,pixelCap);scale=Math.max(0.1,scale);renderScale=scale;
-var vp=page.getViewport({scale:scale}),holder=$('page'+slot);holder.innerHTML='';var c=document.createElement('canvas');c.width=Math.max(1,Math.floor(vp.width));c.height=Math.max(1,Math.floor(vp.height));c.style.width=Math.min(w,base.width*fit)+'px';c.style.height=Math.min(h,base.height*fit)+'px';holder.appendChild(c);var ctx=c.getContext('2d',{alpha:false});if(!ctx)throw new Error('Canvas 2D unavailable');return page.render({canvasContext:ctx,viewport:vp,background:'#ffffff'}).promise})}
-function rotate(){clearTimeout(rot);rot=setTimeout(next,cfg.duration*1000)}
-function next(){if(!pdf||painting){rotate();return}painting=true;var target=1-active,n=(index+1)%pdf.numPages;draw(pdf,n,target).then(function(){$('page'+target).classList.add('active');$('page'+active).classList.remove('active');active=target;index=n;phase='Showing slides';status()},function(e){lastError='Slide '+(n+1)+': '+errorText(e);phase='Slide rendering error';status()}).then(function(){painting=false;rotate()})}
-function install(buf,fromCache){return getDoc(buf).then(function(d){if(!d.numPages)throw new Error('PDF has no pages');var target=1-active;return draw(d,0,target).then(function(){var old=pdf;pdf=d;bytesNow=buf.slice(0);active=target;index=0;offline=!!fromCache;lastSuccess=new Date().toLocaleString();lastError='';phase='Showing slides';$('page'+target).classList.add('active');$('page'+(1-active)).classList.remove('active');$('splash').style.display='none';status();rotate();if(old)try{old.destroy()}catch(e){}})})}
-function planRetry(){clearTimeout(retry);var delay=Math.min(120000,15000*Math.pow(2,Math.min(attempt,3)));retry=setTimeout(update,delay);if(!pdf)message('Retrying in '+Math.round(delay/1000)+' seconds…')}
-function update(){if(busy)return;busy=true;lastCheck=new Date().toLocaleString();message(pdf?'Checking SharePoint for updates…':'Connecting to SharePoint…');xhrPDF().then(function(buf){message('Received PDF ('+Math.round(buf.byteLength/1024)+' KB)');if(equal(bytesNow,buf)){offline=false;lastError='';phase='Showing slides (up to date)';status();return null}return install(buf,false).then(function(){cacheWrite(buf)})}).then(function(){attempt=0;clearTimeout(retry);if(pdf){$('splash').style.display='none';phase='Showing slides';status()}},function(e){attempt++;lastError=errorText(e);phase='Update failed';status();if(!pdf){message('Cannot display presentation');reveal();planRetry()}else{phase='Showing previous presentation';status();planRetry()}}).then(function(){busy=false})}
-function schedule(){clearInterval(check);check=setInterval(update,Math.max(60000,cfg.hours*3600000))}
-$('settingsBtn').onclick=function(){document.body.classList.add('settings-open','show-ui');$('duration').value=cfg.duration;$('hours').value=cfg.hours;status()};$('closeBtn').onclick=function(){document.body.classList.remove('settings-open');reveal()};$('stage').onclick=reveal;document.onmousemove=function(){if(!document.body.classList.contains('settings-open'))reveal()};document.onkeydown=function(e){if(e.key==='Escape')$('closeBtn').click();else if(e.key==='Enter')reveal()};
-$('saveBtn').onclick=function(){var d=Number($('duration').value),h=Number($('hours').value);if(!(d>=3&&d<=3600&&h>=1/60&&h<=720))return alert('Invalid settings');cfg.duration=d;cfg.hours=h;try{localStorage.setItem(STORE,JSON.stringify(cfg))}catch(e){}schedule();if(pdf)rotate();$('closeBtn').click()};$('refreshBtn').onclick=function(){clearTimeout(retry);update()};
-$('fullscreenBtn').onclick=function(){var n=document.documentElement;try{var f=n.requestFullscreen||n.webkitRequestFullscreen;if(f){var p=f.call(n);if(p&&p.catch)p.catch(function(){})}}catch(e){}};
-window.onerror=function(msg,src,line){lastError='JS '+msg+' (line '+line+')';message('JavaScript error');reveal();return false};
-window.addEventListener('resize',function(){if(pdf&&!painting){painting=true;draw(pdf,index,active).then(function(){phase='Showing slides';status()},function(e){lastError=errorText(e);status()}).then(function(){painting=false})}});
-message('Starting LG-compatible player…');schedule();
-// Do not wait for IndexedDB: some Signage browsers stall on database opening.
-var cacheTimeout=setTimeout(function(){if(!busy&&!pdf)update()},3000);
-cacheRead().then(function(buf){clearTimeout(cacheTimeout);if(buf&&isPDF(buf))return install(buf,true).then(update,function(e){lastError='Cache invalid: '+errorText(e);update()});update()},function(){clearTimeout(cacheTimeout);update()});
+(function(){
+'use strict';
+var INTERVAL=15000, UPDATE=4*60*60*1000;
+var slides=[],version='',index=0,rotator=null,checking=false;
+var img=document.getElementById('slide'),msg=document.getElementById('message');
+function showError(s){msg.style.display='block';msg.innerHTML='MOC HSE InfoBoard: '+s;}
+function showSlide(){
+ if(!slides.length){showError('No slides available');return;}
+ var src='slides/'+encodeURIComponent(slides[index])+'?v='+encodeURIComponent(version);
+ var preload=new Image();
+ preload.onload=function(){img.src=src;img.style.display='block';msg.style.display='none';};
+ preload.onerror=function(){showError('Cannot load image '+(index+1)+' of '+slides.length+'. Retrying…');setTimeout(showSlide,15000);};
+ preload.src=src;
+}
+function next(){if(!slides.length)return;index=(index+1)%slides.length;showSlide();}
+function startRotation(){if(rotator)clearInterval(rotator);rotator=setInterval(next,INTERVAL);}
+function requestManifest(){
+ if(checking)return;checking=true;
+ var xhr=new XMLHttpRequest();
+ var done=false;
+ var watchdog=setTimeout(function(){if(!done){done=true;checking=false;try{xhr.abort()}catch(e){}if(!slides.length)showError('Timeout loading slides list. Retrying…');setTimeout(requestManifest,30000)}},25000);
+ xhr.onreadystatechange=function(){
+  if(xhr.readyState!==4||done)return;done=true;clearTimeout(watchdog);checking=false;
+  if(xhr.status>=200&&xhr.status<300){
+   try{
+    var data=JSON.parse(xhr.responseText);
+    if(!data.slides||!data.slides.length)throw new Error('Empty slide list');
+    if(data.version!==version||!slides.length){version=String(data.version||'1');slides=data.slides;index=0;showSlide();startRotation();}
+   }catch(e){if(!slides.length)showError('Invalid slides.json: '+e.message);}
+  }else{if(!slides.length)showError('Slides not published yet (HTTP '+xhr.status+'). Retrying…');}
+ };
+ xhr.onerror=function(){if(!slides.length)showError('Network error loading slides list. Retrying…')};
+ try{xhr.open('GET','slides/slides.json?t='+new Date().getTime(),true);xhr.send(null)}catch(e){done=true;clearTimeout(watchdog);checking=false;showError(e.message)}
+}
+window.onerror=function(message){showError('JavaScript error: '+message);return false};
+requestManifest();setInterval(requestManifest,UPDATE);setInterval(function(){if(!slides.length)requestManifest()},30000);
 })();
-</script>
-</body></html>
+</script></body></html>
